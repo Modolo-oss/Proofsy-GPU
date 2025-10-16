@@ -72,7 +72,7 @@ export default async function handler(req, res) {
       metadataJson: JSON.stringify(completeMetadata),
       inputHash: jobData.inputHash,
       gpuType: jobData.gpuType,
-      txHash: blockchainReceipt.txHash,
+      txHash: blockchainReceipt.proofHash, // Use proof_hash instead of workflow ID
       nid: blockchainReceipt.nid,
       chain: 'numbers-mainnet'
       });

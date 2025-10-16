@@ -302,7 +302,7 @@ function renderTimelineEvent(event) {
       <div class="blockchain-proof">
         <div class="mono small mb-2">
           <strong>NID:</strong> ${event.nid}<br>
-          <strong>Tx Hash:</strong> ${event.txHash}
+          <strong>Proof Hash:</strong> ${event.txHash}
         </div>
         
         <div class="small">
