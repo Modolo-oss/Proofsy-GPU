@@ -146,6 +146,7 @@ sequenceDiagram
   "taskType": "stable-diffusion",
   "executor": "0x51130dB91B91377A24d6Ebeb2a5fC02748b53ce1",
   "occurredAt": "2025-10-15T10:00:00Z",
+  "idempotencyKey": "gpu-job-job_1729012345_abc123-JobSubmitted",
   "metadata": {
     "jobId": "job_1729012345_abc123",
     "taskType": "stable-diffusion",
@@ -167,9 +168,13 @@ sequenceDiagram
   "taskType": "stable-diffusion",
   "executor": "0x51130dB91B91377A24d6Ebeb2a5fC02748b53ce1",
   "occurredAt": "2025-10-15T10:00:52Z",
+  "idempotencyKey": "gpu-job-job_1729012345_abc123-JobCompleted",
   "metadata": {
     "jobId": "job_1729012345_abc123",
     "taskType": "stable-diffusion",
+    "taskName": "Stable Diffusion Image Generation",
+    "gpuType": "NVIDIA A100 80GB",
+    "executor": "0x51130dB91B91377A24d6Ebeb2a5fC02748b53ce1",
     "outputHash": "QmOutputDef456...",
     "outputCid": "bafybeigabc123...",
     "duration": 52.3,
@@ -182,6 +187,43 @@ sequenceDiagram
       "fileSize": 2048000,
       "mimeType": "image/png"
     }
+  }
+}
+```
+
+### Blockchain Storage Schema
+```json
+{
+  "assetCid": "bafkrei...",
+  "assetSha256": "proof_hash_from_numbers_api",
+  "encodingFormat": "application/json",
+  "assetTimestampCreated": 1760615889,
+  "assetCreator": "creator_name",
+  "abstract": "GPU Job JobSubmitted: taskType | JobID: jobId | GPU: gpuType | Executor: executor",
+  "headline": "ProofsyGPU - taskType Job Receipt",
+  "assetSourceType": "others",
+  "creatorWallet": "0x...",
+  "jobDetails": {
+    "eventType": "JobSubmitted|JobCompleted",
+    "jobId": "job_id",
+    "taskType": "task_type",
+    "executor": "0x...",
+    "occurredAt": "ISO_timestamp",
+    "idempotencyKey": "gpu-job-jobId-eventType"
+  },
+  "gpuJobMetadata": {
+    "jobId": "job_id",
+    "taskType": "task_type",
+    "taskName": "Human Readable Task Name",
+    "gpuType": "NVIDIA A100 80GB",
+    "executor": "0x...",
+    "status": "submitted|completed",
+    "inputHash": "QmInput...",
+    "estimatedDuration": 45,
+    "outputHash": "QmOutput...",
+    "duration": 52.3,
+    "gpuUtilization": "87%",
+    "artifact": { "fileName": "...", "fileHash": "...", "fileSize": 1234, "mimeType": "..." }
   }
 }
 ```
@@ -363,6 +405,54 @@ GET /api/jobs/list
 - Timeline query sorts chronologically (oldest first)
 - JobSubmitted always precedes JobCompleted for same jobId
 - Deterministic keys ensure exactly-once semantics per job lifecycle stage
+
+### Local Job States → Blockchain Payloads Mapping
+
+```mermaid
+graph LR
+    subgraph "Local Job State"
+        A[Job Submitted] --> B[Job Completed]
+    end
+    
+    subgraph "Blockchain Events"
+        C[JobSubmitted Event] --> D[JobCompleted Event]
+    end
+    
+    subgraph "Numbers Protocol Storage"
+        E[Asset File: JSON Metadata] 
+        F[Caption: Job Summary]
+        G[nit_commit_custom: Structured Data]
+        H[Information: Proof + Job Details]
+    end
+    
+    A -->|Generate Job Data| C
+    B -->|Generate Completion Data| D
+    
+    C --> E
+    C --> F
+    C --> G
+    C --> H
+    
+    D --> E
+    D --> F
+    D --> G
+    D --> H
+    
+    style A fill:#e1f5ff
+    style B fill:#e1f5ff
+    style C fill:#fff4e1
+    style D fill:#fff4e1
+    style E fill:#f0e1ff
+    style F fill:#f0e1ff
+    style G fill:#f0e1ff
+    style H fill:#f0e1ff
+```
+
+### Job State Transitions
+1. **Job Submitted** → **JobSubmitted Event** → **Numbers Protocol Asset**
+2. **Job Completed** → **JobCompleted Event** → **Numbers Protocol Asset**
+3. **Each Event** → **Unique Blockchain Receipt** (NID + Proof Hash)
+4. **Timeline Query** → **Chronological Event Chain** → **Complete Audit Trail**
 
 ---
 
