@@ -427,6 +427,7 @@ async function verifyC2PAArtifact(jobId) {
     
     const artifactContent = await response.text();
     console.log('Downloaded artifact content length:', artifactContent.length);
+    console.log('Artifact content preview:', artifactContent.substring(0, 500) + '...');
     
     // Then verify the C2PA signature
     const verifyResponse = await fetch('/api/artifacts/verify-c2pa', {
@@ -438,7 +439,16 @@ async function verifyC2PAArtifact(jobId) {
     });
     
     if (!verifyResponse.ok) {
-      throw new Error(`Verification API error: HTTP ${verifyResponse.status}: ${verifyResponse.statusText}`);
+      // Try to get error details from response
+      let errorDetails = '';
+      try {
+        const errorResponse = await verifyResponse.text();
+        errorDetails = errorResponse;
+        console.error('API Error Response:', errorResponse);
+      } catch (e) {
+        errorDetails = verifyResponse.statusText;
+      }
+      throw new Error(`Verification API error: HTTP ${verifyResponse.status}: ${errorDetails}`);
     }
     
     const verificationResult = await verifyResponse.json();
