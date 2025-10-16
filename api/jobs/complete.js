@@ -4,6 +4,18 @@ import { commitJobReceipt, generateIdempotencyKey } from '../../lib/numbers.js';
 import { saveJobReceipt } from '../../lib/db.js';
 import { simulateJobCompletion, generateMockArtifact } from '../../lib/gpu-simulator.js';
 
+// Helper function to get task name for consistency
+function getTaskName(taskType) {
+  const taskNames = {
+    'stable-diffusion': 'Stable Diffusion Image Generation',
+    'llm-inference': 'LLM Text Inference',
+    'model-training': 'Model Fine-tuning',
+    'video-upscaling': 'AI Video Upscaling',
+    'speech-synthesis': 'Speech-to-Text Transcription'
+  };
+  return taskNames[taskType] || taskType;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -25,6 +37,9 @@ export default async function handler(req, res) {
     const metadata = {
       jobId,
       taskType,
+      taskName: getTaskName(taskType), // Add task name for consistency
+      gpuType: completionData.gpuType || 'NVIDIA A100 80GB', // Add gpuType
+      executor: executor || 'system',
       outputHash: completionData.outputHash,
       outputCid: completionData.outputCid,
       duration: completionData.duration,
