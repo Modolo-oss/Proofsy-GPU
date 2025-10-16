@@ -40,12 +40,16 @@ export default async function handler(req, res) {
     // Simulate job completion
     const completionData = simulateJobCompletion(jobId, taskType, estimatedDuration || 60);
     
+    // Get consistent GPU type from submitted event
+    const consistentGpuType = submittedEvent.metadata?.gpuType || completionData.gpuType;
+    
     // Generate JSON artifact with detailed results
     const jsonArtifact = generateJsonArtifact(
       jobId, 
       taskType, 
       executor || 'system',
-      completionData
+      completionData,
+      consistentGpuType
     );
     
     // Generate signing key pair (in production, use a secure key management system)
@@ -79,7 +83,7 @@ export default async function handler(req, res) {
       jobId,
       taskType,
       taskName: getTaskName(taskType),
-      gpuType: completionData.gpuType || 'NVIDIA A100 80GB',
+      gpuType: submittedEvent.metadata?.gpuType || completionData.gpuType || 'NVIDIA A100 80GB', // Use same GPU as submitted
       executor: executor || 'system',
       outputHash: completionData.outputHash,
       outputCid: completionData.outputCid,
