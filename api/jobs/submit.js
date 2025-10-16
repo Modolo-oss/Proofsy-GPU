@@ -56,7 +56,10 @@ export default async function handler(req, res) {
       encodingFormat: 'application/json',
       assetTimestampCreated: blockchainReceipt.rawResponse?.parsed_meta?.capture_time || Math.floor(Date.now() / 1000),
       assetCreator: blockchainReceipt.creatorName || 'proofsy-gpu-system',
-      assetSourceType: blockchainReceipt.originType || 'gpu-compute-job'
+      assetSourceType: blockchainReceipt.originType || 'gpu-compute-job',
+      // Add blockchain metadata from Numbers API response
+      abstract: blockchainReceipt.rawResponse?.caption || `GPU Job ${metadata.eventType || 'JobSubmitted'}: ${metadata.taskType}`,
+      headline: blockchainReceipt.rawResponse?.headline || `ProofsyGPU - ${metadata.taskType} Job Receipt`
     };
 
     // Save to database (handle duplicate idempotency key)
