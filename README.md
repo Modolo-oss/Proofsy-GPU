@@ -28,11 +28,11 @@ graph TB
     end
     
     subgraph "Vercel Serverless Functions"
-        SubmitAPI[/api/jobs/submit.js]
-        CompleteAPI[/api/jobs/complete.js]
-        TimelineAPI[/api/jobs/timeline/jobId.js]
-        ListAPI[/api/jobs/list.js]
-        HealthAPI[/api/health.js]
+        SubmitAPI[api/jobs/submit.js]
+        CompleteAPI[api/jobs/complete.js]
+        TimelineAPI[api/jobs/timeline/jobId.js]
+        ListAPI[api/jobs/list.js]
+        HealthAPI[api/health.js]
     end
     
     subgraph "Mock GPU Layer"
