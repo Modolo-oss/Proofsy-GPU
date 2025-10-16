@@ -46,16 +46,17 @@ export default async function handler(req, res) {
     // Merge Numbers API metadata with job metadata
     const completeMetadata = {
       ...metadata,
-      // Numbers API metadata
+      // Numbers API metadata from response
       assetCid: blockchainReceipt.nid,
+      assetSha256: blockchainReceipt.assetSha256,
       proofHash: blockchainReceipt.proofHash,
       creatorWallet: blockchainReceipt.creatorWallet,
       creatorName: blockchainReceipt.creatorName,
       ownerWallet: blockchainReceipt.ownerWallet,
       encodingFormat: 'application/json',
-      assetTimestampCreated: Math.floor(Date.now() / 1000),
+      assetTimestampCreated: blockchainReceipt.rawResponse?.parsed_meta?.capture_time || Math.floor(Date.now() / 1000),
       assetCreator: blockchainReceipt.creatorName || 'proofsy-gpu-system',
-      assetSourceType: 'gpu-compute-job'
+      assetSourceType: blockchainReceipt.originType || 'gpu-compute-job'
     };
 
     // Save to database (handle duplicate idempotency key)
