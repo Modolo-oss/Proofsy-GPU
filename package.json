@@ -5,7 +5,7 @@
   "main": "api/index.js",
   "scripts": {
     "dev": "vercel dev",
-    "build": "prisma generate",
+    "build": "prisma generate && prisma migrate deploy",
     "deploy": "vercel --prod",
     "migrate": "prisma migrate deploy",
     "migrate:dev": "prisma migrate dev"
