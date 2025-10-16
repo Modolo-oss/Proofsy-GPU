@@ -1,6 +1,6 @@
-// Get job timeline (all receipts for a specific job)
+// Get job timeline (all receipts for a specific job) - Path Parameter Version
 
-import { getJobTimeline } from '../../lib/db.js';
+import { getJobTimeline } from '../../../lib/db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     const { jobId } = req.query;
 
     if (!jobId) {
-      return res.status(400).json({ error: 'jobId query parameter is required' });
+      return res.status(400).json({ error: 'jobId path parameter is required' });
     }
 
     const timeline = await getJobTimeline(jobId);

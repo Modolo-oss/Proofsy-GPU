@@ -246,7 +246,7 @@ function renderJobCard(job) {
 
 async function viewTimeline(jobId) {
   try {
-    const response = await fetch(`/api/jobs/timeline?jobId=${jobId}`);
+    const response = await fetch(`/api/jobs/timeline/${jobId}`);
     const data = await response.json();
     
     if (!data.success) {

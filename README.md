@@ -379,7 +379,7 @@ Content-Type: application/json
 
 ### Get Job Timeline
 ```http
-GET /api/jobs/timeline?jobId=job_...
+GET /api/jobs/timeline/{jobId}
 ```
 
 ### List All Jobs
