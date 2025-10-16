@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('submitJobBtn').addEventListener('click', submitJob);
   document.getElementById('refreshJobsBtn').addEventListener('click', loadJobs);
+  
+  // Make functions globally accessible for onclick handlers
+  window.verifyC2PAArtifact = verifyC2PAArtifact;
+  window.downloadC2PAArtifact = downloadC2PAArtifact;
 });
 
 function loadTaskTypes() {
@@ -409,6 +413,11 @@ async function downloadC2PAArtifact(jobId) {
 
 async function verifyC2PAArtifact(jobId) {
   try {
+    console.log('Starting C2PA verification for job:', jobId);
+    
+    // Show loading state
+    showStatus('🔄 Verifying C2PA signature...', 'info');
+    
     // First download the artifact content
     const response = await fetch(`/api/artifacts/download/${jobId}`);
     
@@ -417,6 +426,7 @@ async function verifyC2PAArtifact(jobId) {
     }
     
     const artifactContent = await response.text();
+    console.log('Downloaded artifact content length:', artifactContent.length);
     
     // Then verify the C2PA signature
     const verifyResponse = await fetch('/api/artifacts/verify-c2pa', {
@@ -427,12 +437,18 @@ async function verifyC2PAArtifact(jobId) {
       body: JSON.stringify({ artifactContent })
     });
     
+    if (!verifyResponse.ok) {
+      throw new Error(`Verification API error: HTTP ${verifyResponse.status}: ${verifyResponse.statusText}`);
+    }
+    
     const verificationResult = await verifyResponse.json();
+    console.log('Verification result:', verificationResult);
     
     if (verificationResult.valid) {
+      showStatus('✅ C2PA verification successful!', 'success');
       showC2PAVerificationModal(verificationResult.manifest);
     } else {
-      showStatus(`❌ C2PA verification failed: ${verificationResult.error}`, 'danger');
+      showStatus(`❌ C2PA verification failed: ${verificationResult.error || 'Unknown error'}`, 'danger');
     }
   } catch (error) {
     console.error('Error verifying C2PA artifact:', error);
@@ -441,63 +457,149 @@ async function verifyC2PAArtifact(jobId) {
 }
 
 function showC2PAVerificationModal(manifest) {
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.setAttribute('tabindex', '-1');
-  modal.innerHTML = `
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">✅ C2PA Verification Result</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="verification-success">
-            <div class="alert alert-success">
-              <h6>✓ Signature Valid</h6>
-              <h6>✓ Not Tampered</h6>
-            </div>
-            <div class="row">
-              <div class="col-md-6">
-                <p><strong>Job ID:</strong> ${manifest.jobId}</p>
-                <p><strong>GPU:</strong> ${manifest.gpuType || 'N/A'}</p>
-              </div>
-              <div class="col-md-6">
-                <p><strong>Blockchain NID:</strong> <code class="small">${manifest.blockchainNid || 'N/A'}</code></p>
-                <p><strong>Signed At:</strong> ${new Date(manifest.signedAt).toLocaleString()}</p>
-              </div>
-            </div>
-            ${manifest.explorerUrl ? `
-              <div class="text-center mt-3">
-                <a href="${manifest.explorerUrl}" target="_blank" class="btn btn-outline-primary">
-                  🔍 View on Numbers Explorer
-                </a>
-              </div>
-            ` : ''}
+  // Create modal overlay
+  const modalOverlay = document.createElement('div');
+  modalOverlay.className = 'modal-overlay';
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  `;
+  
+  modalOverlay.innerHTML = `
+    <div class="modal-content" style="
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    ">
+      <div class="modal-header" style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #eee;
+      ">
+        <h5 class="modal-title" style="margin: 0; color: #28a745;">✅ C2PA Verification Result</h5>
+        <button type="button" class="modal-close" style="
+          background: none;
+          border: none;
+          font-size: 24px;
+          cursor: pointer;
+          color: #999;
+        ">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="verification-success">
+          <div class="alert alert-success" style="
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+          ">
+            <h6 style="margin: 0;">✓ Signature Valid</h6>
+            <h6 style="margin: 0;">✓ Not Tampered</h6>
           </div>
-          <div class="verification-note mt-3">
-            <div class="alert alert-info">
-              <small>This JSON artifact is authentic and provably generated by ProofsyGPU.</small>
+          
+          <div class="row" style="margin-bottom: 20px;">
+            <div class="col-md-6">
+              <p><strong>Job ID:</strong> ${manifest.jobId}</p>
+              <p><strong>GPU:</strong> ${manifest.gpuType || 'N/A'}</p>
+            </div>
+            <div class="col-md-6">
+              <p><strong>Blockchain NID:</strong> <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${manifest.blockchainNid || 'N/A'}</code></p>
+              <p><strong>Signed At:</strong> ${new Date(manifest.signedAt).toLocaleString()}</p>
             </div>
           </div>
+          
+          ${manifest.explorerUrl ? `
+            <div class="text-center" style="margin: 20px 0;">
+              <a href="${manifest.explorerUrl}" target="_blank" class="btn btn-outline-primary" style="
+                display: inline-block;
+                padding: 10px 20px;
+                border: 1px solid #007bff;
+                color: #007bff;
+                text-decoration: none;
+                border-radius: 5px;
+                transition: all 0.3s;
+              " onmouseover="this.style.background='#007bff'; this.style.color='white'" onmouseout="this.style.background='white'; this.style.color='#007bff'">
+                🔍 View on Numbers Explorer
+              </a>
+            </div>
+          ` : ''}
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+        
+        <div class="verification-note" style="margin-top: 20px;">
+          <div class="alert alert-info" style="
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+          ">
+            <small>This JSON artifact is authentic and provably generated by ProofsyGPU.</small>
+          </div>
         </div>
+      </div>
+      
+      <div class="modal-footer" style="
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+        text-align: right;
+      ">
+        <button type="button" class="btn btn-primary modal-close" style="
+          background: #007bff;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          cursor: pointer;
+        ">Close</button>
       </div>
     </div>
   `;
   
-  document.body.appendChild(modal);
+  document.body.appendChild(modalOverlay);
   
-  // Initialize Bootstrap modal
-  const bootstrapModal = new bootstrap.Modal(modal);
-  bootstrapModal.show();
-  
-  // Remove modal from DOM when hidden
-  modal.addEventListener('hidden.bs.modal', () => {
-    document.body.removeChild(modal);
+  // Add close functionality
+  const closeButtons = modalOverlay.querySelectorAll('.modal-close');
+  closeButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      document.body.removeChild(modalOverlay);
+    });
   });
+  
+  // Close on overlay click
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) {
+      document.body.removeChild(modalOverlay);
+    }
+  });
+  
+  // Close on Escape key
+  const handleEscape = (e) => {
+    if (e.key === 'Escape') {
+      document.body.removeChild(modalOverlay);
+      document.removeEventListener('keydown', handleEscape);
+    }
+  };
+  document.addEventListener('keydown', handleEscape);
 }
 
 function showStatus(message, type) {
