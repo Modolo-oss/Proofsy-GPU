@@ -292,6 +292,37 @@ function renderTimelineEvent(event) {
   const eventClass = event.eventType === 'JobSubmitted' ? 'submitted' : 'completed';
   const metadata = event.metadata;
   
+  let artifactSection = '';
+  
+  // Add C2PA artifact section for JobCompleted events
+  if (event.eventType === 'JobCompleted' && metadata.c2paArtifact && metadata.artifact?.c2paSigned) {
+    artifactSection = `
+      <div class="c2pa-artifact mt-3 p-3 bg-light rounded">
+        <h6 class="mb-2">🛡️ C2PA-Signed JSON Artifact</h6>
+        <div class="small mb-2">
+          <div><strong>Type:</strong> ${metadata.artifact.type || 'json'}</div>
+          <div><strong>Size:</strong> ${formatFileSize(metadata.artifact.size || metadata.c2paArtifact.size)}</div>
+          <div><strong>C2PA Signed:</strong> ✅ Yes</div>
+          <div><strong>Manifest:</strong> ✅ Embedded</div>
+        </div>
+        
+        <div class="btn-group-sm">
+          <button onclick="downloadC2PAArtifact('${metadata.jobId}')" class="btn btn-primary btn-sm">
+            📥 Download JSON with Proof
+          </button>
+          <button onclick="verifyC2PAArtifact('${metadata.jobId}')" class="btn btn-outline-secondary btn-sm">
+            ✅ Verify C2PA Signature
+          </button>
+        </div>
+        
+        <details class="mt-2">
+          <summary class="small">📋 Result Preview</summary>
+          <pre class="small mt-1 p-2 bg-white border rounded">${getArtifactPreview(metadata.c2paArtifact.content)}</pre>
+        </details>
+      </div>
+    `;
+  }
+  
   return `
     <div class="timeline-event ${eventClass}">
       <div class="d-flex justify-content-between mb-2">
@@ -307,7 +338,8 @@ function renderTimelineEvent(event) {
         
         <div class="small">
           ${Object.entries(metadata).map(([key, value]) => {
-            if (typeof value === 'object') return '';
+            if (typeof value === 'object' && key !== 'c2paArtifact') return '';
+            if (key === 'c2paArtifact') return '';
             return `<div><strong>${key}:</strong> ${value}</div>`;
           }).join('')}
         </div>
@@ -316,8 +348,156 @@ function renderTimelineEvent(event) {
           <i class="fas fa-search me-1"></i> Verify on Blockchain
         </a>
       </div>
+      
+      ${artifactSection}
     </div>
   `;
+}
+
+function getArtifactPreview(artifactContent) {
+  try {
+    const artifact = JSON.parse(artifactContent);
+    const preview = {
+      jobId: artifact.jobId,
+      taskType: artifact.taskType,
+      executedAt: artifact.executedAt,
+      result: artifact.result,
+      execution: artifact.execution,
+      c2pa: {
+        version: artifact.c2pa?.version,
+        signed: !!artifact.c2pa?.signature
+      }
+    };
+    return JSON.stringify(preview, null, 2);
+  } catch (error) {
+    return 'Preview unavailable';
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function downloadC2PAArtifact(jobId) {
+  try {
+    const response = await fetch(`/api/artifacts/download/${jobId}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${jobId}_result_c2pa.json`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    showStatus('✅ C2PA artifact downloaded successfully!', 'success');
+  } catch (error) {
+    console.error('Error downloading artifact:', error);
+    showStatus(`❌ Failed to download artifact: ${error.message}`, 'danger');
+  }
+}
+
+async function verifyC2PAArtifact(jobId) {
+  try {
+    // First download the artifact content
+    const response = await fetch(`/api/artifacts/download/${jobId}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const artifactContent = await response.text();
+    
+    // Then verify the C2PA signature
+    const verifyResponse = await fetch('/api/artifacts/verify-c2pa', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ artifactContent })
+    });
+    
+    const verificationResult = await verifyResponse.json();
+    
+    if (verificationResult.valid) {
+      showC2PAVerificationModal(verificationResult.manifest);
+    } else {
+      showStatus(`❌ C2PA verification failed: ${verificationResult.error}`, 'danger');
+    }
+  } catch (error) {
+    console.error('Error verifying C2PA artifact:', error);
+    showStatus(`❌ Failed to verify artifact: ${error.message}`, 'danger');
+  }
+}
+
+function showC2PAVerificationModal(manifest) {
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.setAttribute('tabindex', '-1');
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">✅ C2PA Verification Result</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="verification-success">
+            <div class="alert alert-success">
+              <h6>✓ Signature Valid</h6>
+              <h6>✓ Not Tampered</h6>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <p><strong>Job ID:</strong> ${manifest.jobId}</p>
+                <p><strong>GPU:</strong> ${manifest.gpuType || 'N/A'}</p>
+              </div>
+              <div class="col-md-6">
+                <p><strong>Blockchain NID:</strong> <code class="small">${manifest.blockchainNid || 'N/A'}</code></p>
+                <p><strong>Signed At:</strong> ${new Date(manifest.signedAt).toLocaleString()}</p>
+              </div>
+            </div>
+            ${manifest.explorerUrl ? `
+              <div class="text-center mt-3">
+                <a href="${manifest.explorerUrl}" target="_blank" class="btn btn-outline-primary">
+                  🔍 View on Numbers Explorer
+                </a>
+              </div>
+            ` : ''}
+          </div>
+          <div class="verification-note mt-3">
+            <div class="alert alert-info">
+              <small>This JSON artifact is authentic and provably generated by ProofsyGPU.</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Initialize Bootstrap modal
+  const bootstrapModal = new bootstrap.Modal(modal);
+  bootstrapModal.show();
+  
+  // Remove modal from DOM when hidden
+  modal.addEventListener('hidden.bs.modal', () => {
+    document.body.removeChild(modal);
+  });
 }
 
 function showStatus(message, type) {

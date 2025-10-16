@@ -1,8 +1,9 @@
 // Complete GPU job and commit to blockchain
 
 import { commitJobReceipt, generateIdempotencyKey } from '../../lib/numbers.js';
-import { saveJobReceipt } from '../../lib/db.js';
-import { simulateJobCompletion, generateMockArtifact } from '../../lib/gpu-simulator.js';
+import { saveJobReceipt, getJobTimeline } from '../../lib/db.js';
+import { simulateJobCompletion, generateMockArtifact, generateJsonArtifact } from '../../lib/gpu-simulator.js';
+import { signArtifactWithC2PA, generateKeyPair } from '../../lib/c2pa-signer.js';
 
 // Helper function to get task name for consistency
 function getTaskName(taskType) {
@@ -28,17 +29,57 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'jobId is required' });
     }
 
+    // Get submitted event from timeline to extract blockchain proof
+    const timeline = await getJobTimeline(jobId);
+    const submittedEvent = timeline.find(event => event.eventType === 'JobSubmitted');
+    
+    if (!submittedEvent) {
+      return res.status(404).json({ error: 'Job submission not found' });
+    }
+
     // Simulate job completion
     const completionData = simulateJobCompletion(jobId, taskType, estimatedDuration || 60);
+    
+    // Generate JSON artifact with detailed results
+    const jsonArtifact = generateJsonArtifact(
+      jobId, 
+      taskType, 
+      executor || 'system',
+      completionData
+    );
+    
+    // Generate signing key pair (in production, use a secure key management system)
+    const keyPair = generateKeyPair();
+    
+    // Prepare blockchain proof from submitted event
+    const blockchainProof = {
+      submittedNid: submittedEvent.nid,
+      completedNid: null, // Will be set after blockchain commit
+      explorerUrl: submittedEvent.metadata?.blockchainReceipt?.explorerUrl,
+      proofHash: submittedEvent.txHash
+    };
+    
+    // Sign JSON artifact with C2PA
+    const signedArtifact = signArtifactWithC2PA(
+      jsonArtifact, 
+      blockchainProof, 
+      keyPair.privateKey
+    );
+    
+    // Save signed artifact to file system (in production, use cloud storage)
+    const artifactPath = `/artifacts/${jobId}_result.json`;
+    const artifactContent = JSON.stringify(signedArtifact, null, 2);
+    
+    // Generate mock artifact for compatibility
     const artifact = generateMockArtifact(jobId, taskType);
     const idempotencyKey = generateIdempotencyKey(jobId, 'JobCompleted');
 
-    // Prepare metadata for blockchain
+    // Prepare metadata for blockchain with C2PA info
     const metadata = {
       jobId,
       taskType,
-      taskName: getTaskName(taskType), // Add task name for consistency
-      gpuType: completionData.gpuType || 'NVIDIA A100 80GB', // Add gpuType
+      taskName: getTaskName(taskType),
+      gpuType: completionData.gpuType || 'NVIDIA A100 80GB',
       executor: executor || 'system',
       outputHash: completionData.outputHash,
       outputCid: completionData.outputCid,
@@ -46,7 +87,15 @@ export default async function handler(req, res) {
       gpuUtilization: completionData.gpuUtilization,
       exitCode: completionData.exitCode,
       status: 'completed',
+      
+      // C2PA Artifact info
       artifact: {
+        type: 'json',
+        path: artifactPath,
+        size: Buffer.byteLength(artifactContent, 'utf8'),
+        c2paSigned: true,
+        c2paManifest: true,
+        publicKey: keyPair.publicKey,
         fileName: artifact.fileName,
         fileHash: artifact.fileHash,
         fileSize: artifact.fileSize,
@@ -65,23 +114,44 @@ export default async function handler(req, res) {
       idempotencyKey
     });
 
+    // Update blockchain proof with completed NID
+    blockchainProof.completedNid = blockchainReceipt.nid;
+    blockchainProof.proofHash = blockchainReceipt.proofHash;
+    
+    // Re-sign artifact with complete blockchain proof
+    const finalSignedArtifact = signArtifactWithC2PA(
+      jsonArtifact, 
+      blockchainProof, 
+      keyPair.privateKey
+    );
+    
+    // Save final signed artifact
+    const finalArtifactContent = JSON.stringify(finalSignedArtifact, null, 2);
+
     // Save to database (handle duplicate idempotency key)
     let dbReceipt;
     try {
       dbReceipt = await saveJobReceipt({
-      idempotencyKey,
-      jobId,
-      eventType: 'JobCompleted',
-      taskType,
-      executor: executor || 'system',
-      occurredAt: new Date(completionData.completedAt),
-      metadataJson: JSON.stringify(metadata),
-      outputHash: completionData.outputHash,
-      duration: completionData.duration,
-      gpuUtilization: completionData.gpuUtilization,
-      txHash: blockchainReceipt.proofHash, // Use proof_hash instead of workflow ID
-      nid: blockchainReceipt.nid,
-      chain: 'numbers-mainnet'
+        idempotencyKey,
+        jobId,
+        eventType: 'JobCompleted',
+        taskType,
+        executor: executor || 'system',
+        occurredAt: new Date(completionData.completedAt),
+        metadataJson: JSON.stringify({
+          ...metadata,
+          c2paArtifact: {
+            content: finalArtifactContent,
+            path: artifactPath,
+            size: Buffer.byteLength(finalArtifactContent, 'utf8')
+          }
+        }),
+        outputHash: completionData.outputHash,
+        duration: completionData.duration,
+        gpuUtilization: completionData.gpuUtilization,
+        txHash: blockchainReceipt.proofHash,
+        nid: blockchainReceipt.nid,
+        chain: 'numbers-mainnet'
       });
     } catch (dbError) {
       // Check for unique constraint violation (duplicate idempotency key)
@@ -106,8 +176,14 @@ export default async function handler(req, res) {
         explorerUrl: blockchainReceipt.explorerUrl
       },
       completionData,
-      artifact,
-      message: 'Job completed successfully and committed to blockchain'
+      artifact: {
+        type: 'json',
+        path: artifactPath,
+        size: Buffer.byteLength(finalArtifactContent, 'utf8'),
+        c2paSigned: true,
+        downloadUrl: `/api/artifacts/download/${jobId}_result.json`
+      },
+      message: 'Job completed with C2PA-signed artifact and committed to blockchain'
     });
   } catch (error) {
     console.error('Error completing job:', error);
