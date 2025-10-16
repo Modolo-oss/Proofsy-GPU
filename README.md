@@ -4,15 +4,27 @@
 
 **ProofsyGPU** is a serverless GPU job receipt tracking system that logs compute job lifecycles (JobSubmitted → JobCompleted) as ERC-7053 commit events to Numbers Mainnet blockchain. Built with Vercel serverless functions and provides a compact audit UI for transparent GPU usage accountability.
 
+### 🛡️ C2PA Content Provenance Integration
+
+ProofsyGPU implements **C2PA (Coalition for Content Provenance and Authenticity)** for AI-generated content verification:
+
+- **📄 JSON Artifacts**: Detailed GPU job results with embedded C2PA manifests
+- **🔐 Cryptographic Signatures**: RSA-based signatures for artifact authenticity
+- **🔗 Blockchain Proof**: Embedded Numbers Protocol NIDs for blockchain verification
+- **✅ Self-Contained Verification**: Download artifacts with embedded proof
+- **🎯 Complete Provenance Chain**: From job submission to artifact generation
+
 ## ✨ Key Features
 
-- **Blockchain Job Receipts**: Every GPU job logged to Numbers Mainnet with ERC-7053 standard
-- **Serverless Architecture**: Vercel serverless functions with auto-scaling
-- **Mock GPU Simulator**: Realistic job simulation without requiring real GPU hardware
-- **Audit UI**: Query job timeline by NID with complete blockchain proof
-- **5 Task Types**: Stable Diffusion, LLM Inference, Model Training, Video Upscaling, Speech-to-Text
-- **Idempotency**: Prevents duplicate event processing
-- **Real-time Status**: System health monitoring and job tracking
+- **🔗 Blockchain Job Receipts**: Every GPU job logged to Numbers Mainnet with ERC-7053 standard
+- **🛡️ C2PA Content Provenance**: JSON artifacts with embedded blockchain proof and cryptographic signatures
+- **⚡ Serverless Architecture**: Vercel serverless functions with auto-scaling
+- **🤖 Mock GPU Simulator**: Realistic job simulation without requiring real GPU hardware
+- **📊 Audit UI**: Query job timeline by NID with complete blockchain proof and C2PA verification
+- **🎯 5 Task Types**: Stable Diffusion, LLM Inference, Model Training, Video Upscaling, Speech-to-Text
+- **🔒 Idempotency**: Prevents duplicate event processing
+- **📱 Real-time Status**: System health monitoring and job tracking
+- **✅ C2PA Verification**: Download and verify signed artifacts with embedded blockchain proof
 
 ## 🏗️ Architecture
 
@@ -33,12 +45,15 @@ graph TB
         TimelineAPI[api/jobs/timeline/jobId.js]
         ListAPI[api/jobs/list.js]
         HealthAPI[api/health.js]
+        DownloadAPI[api/artifacts/download/[jobId].js]
+        VerifyAPI[api/artifacts/verify-c2pa.js]
     end
     
     subgraph "Mock GPU Layer"
         Simulator[GPU Job Simulator]
         TaskTypes[5 Task Types]
-        ArtifactGen[Artifact Generator]
+        ArtifactGen[JSON Artifact Generator]
+        C2PASigner[C2PA Signature Engine]
     end
     
     subgraph "Data Layer"
@@ -247,6 +262,10 @@ cd proofsy-gpu
 ```bash
 npm install
 ```
+**Key Dependencies:**
+- `@prisma/client` - Database ORM
+- `node-forge` - C2PA cryptographic signatures
+- `@vercel/postgres` - Database connection
 
 3. **Configure Environment**
 ```bash
@@ -387,6 +406,101 @@ GET /api/jobs/timeline/{jobId}
 GET /api/jobs/list
 ```
 
+### Download C2PA-Signed Artifact
+```http
+GET /api/artifacts/download/{jobId}
+```
+**Response**: JSON artifact with embedded C2PA manifest and blockchain proof
+
+### Verify C2PA Signature
+```http
+POST /api/artifacts/verify-c2pa
+Content-Type: application/json
+
+{
+  "artifactContent": "{...json artifact...}"
+}
+```
+**Response**: Verification result with manifest details
+
+---
+
+## 🛡️ C2PA Implementation
+
+### C2PA Artifact Structure
+```json
+{
+  "jobId": "job_1760648655376_nlzi97ldh",
+  "taskType": "video-upscaling",
+  "executedAt": "2025-10-16T21:04:23.377Z",
+  "executor": "0x51130dB91B91377A24d6Ebeb2a5fC02748b53ce1",
+  "result": {
+    "inputResolution": "1920x1080",
+    "outputResolution": "3840x2160",
+    "algorithm": "ESRGAN",
+    "upscaleFactor": 2,
+    "processingTime": 180.5,
+    "videoUrl": "ipfs://QmVideort2qdxrsn0b"
+  },
+  "execution": {
+    "gpuType": "NVIDIA H100 SXM",
+    "duration": 163.1,
+    "gpuUtilization": "74%",
+    "memoryUsed": "45GB",
+    "exitCode": 0
+  },
+  "hashes": {
+    "inputHash": "QmInput2xuzvscljjk",
+    "outputHash": "sha256:abc123def456..."
+  },
+  "c2pa": {
+    "version": "1.0",
+    "claim_generator": "ProofsyGPU/1.0",
+    "assertions": [
+      {
+        "label": "gpu.job.provenance",
+        "data": {
+          "jobId": "job_1760648655376_nlzi97ldh",
+          "taskType": "video-upscaling",
+          "executor": "0x51130dB91B91377A24d6Ebeb2a5fC02748b53ce1",
+          "gpuType": "NVIDIA H100 SXM",
+          "occurredAt": "2025-10-16T21:04:23.377Z"
+        }
+      },
+      {
+        "label": "blockchain.proof",
+        "data": {
+          "chain": "numbers-mainnet",
+          "submittedNid": "bafkrei...",
+          "completedNid": "bafkrei...",
+          "explorerUrl": "https://verify.numbersprotocol.io/..."
+        }
+      }
+    ],
+    "signature": {
+      "algorithm": "es256",
+      "value": "MEUCIQDx...",
+      "publicKey": "-----BEGIN PUBLIC KEY-----...",
+      "signedAt": "2025-10-16T21:04:23.377Z"
+    }
+  }
+}
+```
+
+### C2PA Verification Flow
+1. **Job Completion**: Generate JSON artifact with GPU results
+2. **C2PA Signing**: Embed blockchain proof and cryptographic signature
+3. **Storage**: Save signed artifact to database
+4. **Download**: Users can download artifacts with embedded proof
+5. **Verification**: Verify signature and blockchain proof integrity
+
+### C2PA Benefits
+- **Self-Contained Proof**: Artifact contains complete verification data
+- **Blockchain Integration**: Links to Numbers Protocol NIDs
+- **Cryptographic Integrity**: RSA-based signatures for authenticity
+- **Human-Readable**: JSON format with clear structure
+- **Portable**: Download and verify anywhere
+
 ---
 
 ## 🔍 Ordering & Idempotency
@@ -468,6 +582,12 @@ Every job receipt includes:
 1. Click "View Timeline" on any job
 2. Click "Verify on Blockchain" button
 3. See complete on-chain proof at verify.numbersprotocol.io
+
+**C2PA Artifact Features:**
+1. **Download Artifact**: Click "📥 Download JSON with Proof" to get C2PA-signed artifact
+2. **Verify Signature**: Click "✅ Verify C2PA Signature" to verify authenticity
+3. **View Results**: Expand "📋 Result Preview" to see detailed GPU results
+4. **Blockchain Proof**: Artifact contains embedded blockchain NIDs and explorer links
 
 ---
 
