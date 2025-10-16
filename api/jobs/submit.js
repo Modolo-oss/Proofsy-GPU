@@ -48,11 +48,13 @@ export default async function handler(req, res) {
       ...metadata,
       // Numbers API metadata
       assetCid: blockchainReceipt.nid,
-      assetSha256: blockchainReceipt.assetSha256,
+      proofHash: blockchainReceipt.proofHash,
       creatorWallet: blockchainReceipt.creatorWallet,
+      creatorName: blockchainReceipt.creatorName,
+      ownerWallet: blockchainReceipt.ownerWallet,
       encodingFormat: 'application/json',
       assetTimestampCreated: Math.floor(Date.now() / 1000),
-      assetCreator: 'proofsy-gpu-system',
+      assetCreator: blockchainReceipt.creatorName || 'proofsy-gpu-system',
       assetSourceType: 'gpu-compute-job'
     };
 
