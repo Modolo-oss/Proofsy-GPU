@@ -1,0 +1,54 @@
+// Prisma schema for ProofsyGPU - GPU Job Receipt Tracker
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
+}
+
+model JobReceipt {
+  id              String   @id @default(cuid())
+  idempotencyKey  String   @unique
+  jobId           String
+  eventType       String   // "JobSubmitted" or "JobCompleted"
+  taskType        String   // "stable-diffusion", "llm-inference", etc
+  executor        String   // wallet address or executor ID
+  occurredAt      DateTime
+  metadataJson    String   @db.Text
+  inputHash       String?
+  outputHash      String?
+  gpuType         String?
+  duration        Float?
+  gpuUtilization  String?
+  txHash          String
+  nid             String
+  chain           String   @default("numbers-mainnet")
+  createdAt       DateTime @default(now())
+  
+  @@index([jobId])
+  @@index([nid])
+  @@index([eventType])
+}
+
+model JobArtifact {
+  id              String   @id @default(cuid())
+  jobId           String
+  fileName        String
+  filePath        String?
+  fileHash        String
+  fileSize        Int?
+  mimeType        String?
+  c2paSignature   String?
+  captureCid      String?
+  captureTxHash   String?
+  captureNid      String?
+  verified        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([jobId])
+  @@index([captureCid])
+}

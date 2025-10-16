@@ -1,0 +1,31 @@
+{
+  "name": "proofsy-gpu",
+  "version": "1.0.0",
+  "description": "ProofsyGPU - Serverless GPU Job Receipt Tracker with ERC-7053 on Numbers Mainnet",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "prisma generate",
+    "deploy": "vercel --prod",
+    "migrate": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev"
+  },
+  "keywords": [
+    "gpu",
+    "blockchain",
+    "numbers-protocol",
+    "erc-7053",
+    "vercel",
+    "serverless"
+  ],
+  "author": "ProofsyGPU Team",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "@vercel/postgres": "^0.10.0",
+    "prisma": "^6.0.0"
+  },
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  }
+}
