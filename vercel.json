@@ -11,8 +11,5 @@
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" }
-  ],
-  "env": {
-    "NUMBERS_API_KEY": "@numbers_api_key"
-  }
+  ]
 }
