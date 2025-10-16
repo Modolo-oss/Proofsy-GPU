@@ -43,6 +43,19 @@ export default async function handler(req, res) {
       idempotencyKey
     });
 
+    // Merge Numbers API metadata with job metadata
+    const completeMetadata = {
+      ...metadata,
+      // Numbers API metadata
+      assetCid: blockchainReceipt.nid,
+      assetSha256: blockchainReceipt.assetSha256,
+      creatorWallet: blockchainReceipt.creatorWallet,
+      encodingFormat: 'application/json',
+      assetTimestampCreated: Math.floor(Date.now() / 1000),
+      assetCreator: 'proofsy-gpu-system',
+      assetSourceType: 'gpu-compute-job'
+    };
+
     // Save to database (handle duplicate idempotency key)
     let dbReceipt;
     try {
@@ -53,7 +66,7 @@ export default async function handler(req, res) {
       taskType: jobData.taskType,
       executor: jobData.executor,
       occurredAt: new Date(jobData.submittedAt),
-      metadataJson: JSON.stringify(metadata),
+      metadataJson: JSON.stringify(completeMetadata),
       inputHash: jobData.inputHash,
       gpuType: jobData.gpuType,
       txHash: blockchainReceipt.txHash,
