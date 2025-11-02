@@ -45,7 +45,7 @@ graph TB
         TimelineAPI[api/jobs/timeline/jobId.js]
         ListAPI[api/jobs/list.js]
         HealthAPI[api/health.js]
-        DownloadAPI[api/artifacts/download/[jobId].js]
+        DownloadAPI[api/artifacts/download/jobId.js]
         VerifyAPI[api/artifacts/verify-c2pa.js]
     end
     
